@@ -5,6 +5,6 @@ import ProgressTracker from './w1.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ProgressTracker  />
+    <ProgressTracker/>
   </StrictMode>,
 )

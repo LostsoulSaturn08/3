@@ -1,5 +1,3 @@
-// ProgressTracker.jsx
-
 import React, { useState, useEffect } from "react";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
@@ -7,25 +5,64 @@ import Profile from "./Profile";
 import Login from "./Login";
 import TaskCard from "./TaskCard";
 import axios from "axios";
+console.log("ProgressTracker.jsx loaded");
+
+// Helper function to initialize state directly from localStorage
+const getInitialUserState = () => {
+  const storedUser = localStorage.getItem('user');
+  const storedToken = localStorage.getItem('token');
+
+  if (storedUser && storedToken) {
+    try {
+      console.log("Found stored user and token, attempting to parse.");
+      const user = JSON.parse(storedUser);
+      const profile = { ...user, token: storedToken };
+      return {
+        loggedIn: true,
+        profile: profile,
+      };
+    } catch (e) {
+      console.error("Failed to parse stored user data, clearing session:", e);
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+    }
+  }
+  return {
+    loggedIn: false,
+    profile: null,
+  };
+};
 
 const ProgressTracker = () => {
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState("");
   const [deadline, setDeadline] = useState(new Date());
   const [taskDuration, setTaskDuration] = useState(1);
-  const [profile, setProfile] = useState(null);
-  const [loggedIn, setLoggedIn] = useState(false);
+  
+  const initialUserState = getInitialUserState();
+  const [profile, setProfile] = useState(initialUserState.profile);
+  const [loggedIn, setLoggedIn] = useState(initialUserState.loggedIn);
+  
+  const handleAuthError = () => {
+    console.log("Session token expired or invalid, forcing logout.");
+    setLoggedIn(false);
+    setProfile(null);
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+  };
 
-  // Login handler
   const handleLogin = (data) => {
     const { user, token } = data;
     setProfile({ ...user, token });
     setLoggedIn(true);
+    console.log("Login successful, user profile set.");
+    console.log("User saved to localStorage:", localStorage.getItem("user"));
+    console.log("Token saved to localStorage:", localStorage.getItem("token"));
   };
 
-  // Add-Task handler
   const addTaskHandler = async () => {
     if (!newTask.trim()) return;
+    if (!profile?.token) return handleAuthError(); 
 
     const payload = {
       text: newTask,
@@ -44,38 +81,32 @@ const ProgressTracker = () => {
       setTasks((prev) => [...prev, response.data]);
     } catch (error) {
       console.error("Error saving task:", error);
+      if (error.response && error.response.status === 401) {
+        handleAuthError();
+      }
     }
 
     setNewTask("");
     setTaskDuration(1);
   };
 
-  // Remove a task from state
   const handleRemove = (removedTask) => {
     setTasks((prev) => prev.filter((t) => t.id !== removedTask.id));
   };
 
-  // Archive/unarchive handlers in state
+  // ✅ Dummy archive/unarchive handlers (prevent crash)
   const handleArchive = (archivedTask) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === archivedTask.id ? { ...t, archived: true } : t
-      )
-    );
+    console.log("Archive clicked:", archivedTask);
   };
+
   const handleUnarchive = (unarchivedTask) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === unarchivedTask.id ? { ...t, archived: false } : t
-      )
-    );
+    console.log("Unarchive clicked:", unarchivedTask);
   };
 
-  // Fetch tasks on login
   useEffect(() => {
-    if (!loggedIn || !profile.token) return;
+    if (!loggedIn || !profile?.token) return;
 
-    (async () => {
+    const fetchTasks = async () => {
       try {
         const res = await axios.get("http://localhost:5000/api/tasks", {
           headers: { Authorization: `Bearer ${profile.token}` },
@@ -83,9 +114,20 @@ const ProgressTracker = () => {
         setTasks(res.data);
       } catch (err) {
         console.error("Fetch tasks failed:", err);
+        if (err.response && err.response.status === 401) {
+          handleAuthError();
+        }
       }
-    })();
-  }, [loggedIn, profile]);
+    };
+    
+    fetchTasks();
+  }, [profile?.token]); 
+  
+  useEffect(() => {
+    if (!loggedIn) {
+      setTasks([]);
+    }
+  }, [loggedIn]);
 
   return (
     <div className="relative p-4 bg-black text-white min-h-screen font-mono">
@@ -100,11 +142,8 @@ const ProgressTracker = () => {
           <div className="p-4">
             <Profile
               user={profile}
-              onLogout={() => {
-                setLoggedIn(false);
-                setProfile(null);
-                setTasks([]);
-              }}
+              onLogout={handleAuthError} 
+              onAuthError={handleAuthError} 
             />
           </div>
 
@@ -147,8 +186,9 @@ const ProgressTracker = () => {
                 task={task}
                 token={profile.token}
                 onRemove={handleRemove}
-                onArchive={handleArchive}
-                onUnarchive={handleUnarchive}
+                onArchive={handleArchive}   
+                onUnarchive={handleUnarchive} 
+                onAuthError={handleAuthError} 
               />
             ))}
           </div>

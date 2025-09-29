@@ -1,8 +1,7 @@
-require('dotenv').config(); // ✅ load .env config FIRST
+require('dotenv').config(); 
 
 const express = require('express');
 const cors = require('cors');
-const multer = require('multer');
 const path = require('path');
 
 const taskRoutes = require('./routes/taskRoutes');
@@ -11,9 +10,19 @@ const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 
-app.use(cors());
+// CRITICAL FIX: Explicitly allow methods and headers.
+// The browser sends a preflight (OPTIONS) request, and this configuration
+// ensures it gets permission to send the subsequent request with the 'Authorization' header.
+app.use(cors({
+  origin: 'http://localhost:5173', // Assuming React is on port 5173
+  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'], // MUST explicitly allow Authorization
+}));
+
+// Middleware order is crucial: JSON body parser goes after CORS
 app.use(express.json());
 
+// Serve static profile image files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/', (req, res) => {

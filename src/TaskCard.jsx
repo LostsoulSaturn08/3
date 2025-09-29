@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 
-const TaskCard = ({ task, token, onArchive, onRemove, onUnarchive }) => {
+const TaskCard = ({ task, token, onArchive, onRemove, onUnarchive, onAuthError }) => {
   if (!task) return null;
 
   const { id, text, deadline, progress, total } = task;
@@ -31,6 +31,10 @@ const TaskCard = ({ task, token, onArchive, onRemove, onUnarchive }) => {
       );
     } catch (err) {
       console.error("Error updating task:", err);
+      // CRITICAL FIX: Handle unauthorized error on client action
+      if (err.response && err.response.status === 401) {
+          onAuthError();
+      }
     }
   };
 
@@ -43,6 +47,10 @@ const TaskCard = ({ task, token, onArchive, onRemove, onUnarchive }) => {
       );
     } catch (err) {
       console.error("Error deleting task:", err);
+      // CRITICAL FIX: Handle unauthorized error on client action
+      if (err.response && err.response.status === 401) {
+          onAuthError();
+      }
     }
   };
 

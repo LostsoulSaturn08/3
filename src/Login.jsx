@@ -19,10 +19,19 @@ const Login = ({ onLogin }) => {
         password: password
       });
   
-      // Handle successful login (update the state, redirect, etc.)
-      console.log("Login successful:", response.data);
-      onLogin(response.data); // Pass response data to parent component
-  
+      // CRITICAL FIX: Ensure the response has the data we need before proceeding.
+      const { user, token } = response.data;
+      if (user && token) {
+        console.log("Login successful! Saving session to Local Storage.");
+        
+        localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('token', token);
+        
+        onLogin({ user, token });// Pass response data to parent component
+      } else {
+        console.error("Login successful, but missing user or token in response.");
+        alert("Login failed due to missing session data. Please try again.");
+      }
     } catch (error) {
       console.error("Login failed:", error);
       if (error.response) {
