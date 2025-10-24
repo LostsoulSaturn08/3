@@ -1,12 +1,16 @@
-// src/ProgressTracker.jsx (Updated for Color and Refactoring)
+// src/ProgressTracker.jsx (Updated from w1.jsx)
+
 import React, { useState, useEffect } from "react";
 import Profile from "./Profile";
 import Login from "./Login";
 import TaskCard from "./TaskCard";
 import axios from "axios";
-// ✅ NEW Component Import (we will create this next)
+// ✅ NEW: Import the separated form
 import TaskCreationForm from "./TaskCreationForm"; 
+// ✅ NEW: Import the Streak Grid
+import StreakGrid from "./components/StreakGrid"; 
 
+// Helper function to get initial state from localStorage
 const getInitialUserState = () => {
   const storedUser = localStorage.getItem('user');
   const storedToken = localStorage.getItem('token');
@@ -16,6 +20,7 @@ const getInitialUserState = () => {
       const profile = { ...user, token: storedToken };
       return { loggedIn: true, profile: profile };
     } catch (e) {
+      // Handle corrupted data
       localStorage.removeItem('user');
       localStorage.removeItem('token');
     }
@@ -29,9 +34,10 @@ const ProgressTracker = () => {
   const [profile, setProfile] = useState(initialUserState.profile);
   const [loggedIn, setLoggedIn] = useState(initialUserState.loggedIn);
   
-  // ✅ NEW: State for toggling archived tasks
+  // ✅ NEW: State for toggling archived tasks (passed to Profile)
   const [showArchived, setShowArchived] = useState(false);
 
+  // Logout/Auth error handler
   const handleAuthError = () => {
     setLoggedIn(false);
     setProfile(null);
@@ -39,33 +45,38 @@ const ProgressTracker = () => {
     localStorage.removeItem('token');
   };
 
+  // Login handler
   const handleLogin = (data) => {
     const { user, token } = data;
     setProfile({ ...user, token });
     setLoggedIn(true);
   };
 
-  // ✅ NEW: Handler is simplified, logic moved to TaskCreationForm
+  // ✅ NEW: Simplified handler; logic is in TaskCreationForm
   const addTaskHandler = (newTask) => {
     setTasks((prev) => [...prev, newTask]);
   };
 
+  // Handler passed to TaskCard
   const handleRemove = (removedTask) => {
     setTasks((prev) => prev.filter((t) => t.id !== removedTask.id));
   };
 
+  // Handler passed to TaskCard
   const handleArchive = (archivedTask) => {
     setTasks((prev) => prev.map(t => 
       t.id === archivedTask.id ? { ...t, archived: true } : t
     ));
   };
 
+  // Handler passed to TaskCard
   const handleUnarchive = (unarchivedTask) => {
      setTasks((prev) => prev.map(t => 
       t.id === unarchivedTask.id ? { ...t, archived: false } : t
     ));
   };
 
+  // Effect to fetch tasks when user logs in
   useEffect(() => {
     if (!loggedIn || !profile?.token) return;
 
@@ -77,14 +88,15 @@ const ProgressTracker = () => {
         setTasks(res.data);
       } catch (err) {
         if (err.response && err.response.status === 401) {
-          handleAuthError();
+          handleAuthError(); // Log out if token is bad
         }
       }
     };
     
     fetchTasks();
-  }, [profile?.token]); 
+  }, [profile?.token]); // Re-run if token changes
   
+  // Effect to clear tasks on logout
   useEffect(() => {
     if (!loggedIn) {
       setTasks([]);
@@ -118,13 +130,20 @@ const ProgressTracker = () => {
         <Login onLogin={handleLogin} />
       ) : (
         <>
-          {/* ✅ Task creation is now its own component */}
+          {/* ✅ 1. STREAK GRID COMPONENT ADDED */}
+          <StreakGrid 
+            token={profile.token} 
+            onAuthError={handleAuthError} 
+          />
+        
+          {/* ✅ 2. TASK CREATION MOVED TO ITS OWN COMPONENT */}
           <TaskCreationForm 
             token={profile.token}
             onAddTask={addTaskHandler} 
             onAuthError={handleAuthError}
           />
           
+          {/* ✅ 3. TASK LIST GRID */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {tasksToDisplay.map((task) => (
               <TaskCard
@@ -146,7 +165,7 @@ const ProgressTracker = () => {
         </>
       )}
 
-      {/* Calendar styles moved to TaskCreationForm */}
+      {/* Calendar styles are now in TaskCreationForm, so we can remove them from here */}
       <style>{`
         /* Minimal global styles if needed */
       `}</style>

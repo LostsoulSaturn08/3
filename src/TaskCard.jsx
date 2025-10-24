@@ -1,44 +1,38 @@
+// src/TaskCard.jsx (Updated for Color and UI)
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+// ✅ Import icons (make sure you ran npm install react-icons)
+import { FaCheck, FaArchive, FaUndo, FaTrashAlt, FaPlus, FaMinus } from "react-icons/fa"; 
 
 const TaskCard = ({ task, token, onArchive, onRemove, onUnarchive, onAuthError }) => {
   if (!task) return null;
 
   const { id, text, deadline, progress, total } = task;
   const initialPct = total > 0 ? (progress / total) * 100 : 0;
+  const isComplete = initialPct >= 100;
 
-  // Local state
   const [pct, setPct] = useState(initialPct);
   const [deleted, setDeleted] = useState(false);
   const [archived, setArchived] = useState(task.archived || false);
 
-  // Parse deadline
   const due = deadline ? new Date(deadline) : null;
+  const isOverdue = due && new Date() > due && !isComplete;
 
-  // Keep archived flag in sync from localStorage on mount
-  useEffect(() => {
-    const history = JSON.parse(localStorage.getItem("taskHistory")) || [];
-    setArchived(history.some((t) => t.id === id));
-  }, [id]);
-
-  // Helper: send PATCH to backend
   const saveToBackend = async (data) => {
     try {
       await axios.patch(
         `http://localhost:5000/api/tasks/${id}`,
-        data,
+        // ✅ Send taskId for backend streak logic
+        { ...data, taskId: id }, 
         { headers: { Authorization: `Bearer ${token}` } }
       );
     } catch (err) {
-      console.error("Error updating task:", err);
-      // CRITICAL FIX: Handle unauthorized error on client action
       if (err.response && err.response.status === 401) {
           onAuthError();
       }
     }
   };
 
-  // Helper: DELETE request
   const deleteOnBackend = async () => {
     try {
       await axios.delete(
@@ -46,15 +40,12 @@ const TaskCard = ({ task, token, onArchive, onRemove, onUnarchive, onAuthError }
         { headers: { Authorization: `Bearer ${token}` } }
       );
     } catch (err) {
-      console.error("Error deleting task:", err);
-      // CRITICAL FIX: Handle unauthorized error on client action
       if (err.response && err.response.status === 401) {
           onAuthError();
       }
     }
   };
 
-  // Update progress (and completed flag if at 100%)
   const updateProgress = async (newPct) => {
     setPct(newPct);
     const newProgress = Math.round((newPct / 100) * total);
@@ -62,7 +53,6 @@ const TaskCard = ({ task, token, onArchive, onRemove, onUnarchive, onAuthError }
     await saveToBackend({ progress: newProgress, completed: isComplete });
   };
 
-  // Handlers
   const inc = () => updateProgress(Math.min(pct + 100 / total, 100));
   const dec = () => updateProgress(Math.max(pct - 100 / total, 0));
 
@@ -86,43 +76,65 @@ const TaskCard = ({ task, token, onArchive, onRemove, onUnarchive, onAuthError }
 
   if (deleted) return null;
 
+  // ✅ UI/Color logic
+  const currentComplete = pct >= 100;
+  const progressColor = isOverdue ? "bg-red-500" : currentComplete ? "bg-green-500" : "bg-primary-500";
+  const borderColor = isOverdue ? "border-red-500" : currentComplete ? "border-green-500" : "border-primary-500";
+  const cardBackground = currentComplete ? "bg-gray-800" : "bg-gray-900"; 
+
   return (
-    <div className="p-4 shadow-lg rounded-2xl bg-gray-800 text-white text-center">
-      <h2 className="text-xl font-bold mb-2">{text}</h2>
-      <p className="text-gray-400">
-        Deadline: {due ? due.toDateString() : "No deadline"}
+    // ✅ New card styling
+    <div className={`p-6 shadow-2xl rounded-2xl ${cardBackground} text-white border-2 ${borderColor} transition-all duration-500 hover:scale-[1.01]`}>
+      <div className="flex justify-between items-start mb-3">
+        <h2 className={`text-xl font-bold mr-4 ${currentComplete ? "text-green-400" : "text-gray-200"}`}>{text}</h2>
+        {currentComplete && <FaCheck className="text-green-500 text-2xl" />}
+      </div>
+      
+      <p className={`text-sm ${isOverdue ? "text-red-400" : "text-gray-400"} mb-4`}>
+        Due: {due ? due.toDateString() : "No deadline"}
+        {isOverdue && <span className="font-bold ml-1"> (OVERDUE)</span>}
       </p>
 
-      <div className="relative w-24 h-24 mx-auto bg-gray-700 rounded-full overflow-hidden border-4 border-gray-500">
+      {/* ✅ New Progress Bar */}
+      <div className="relative w-full h-4 bg-gray-700 rounded-full overflow-hidden mb-4">
         <div
-          className="absolute bottom-0 left-0 w-full bg-blue-500 transition-all duration-300"
-          style={{ height: `${pct}%` }}
+          className={`h-full ${progressColor} transition-all duration-500`}
+          style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="mt-2 text-gray-400">Progress: {pct.toFixed(1)}%</p>
+      <p className="mt-2 text-gray-400 font-semibold mb-4">
+        Progress: {pct.toFixed(0)}% ({progress}/{total})
+      </p>
 
-      <div className="mt-4 flex justify-center gap-4">
-        <button onClick={inc} className="px-4 py-2 bg-green-500 rounded-lg hover:bg-green-600">
-          + Progress
+      {/* ✅ New Action Buttons */}
+      <div className="mt-4 flex justify-between gap-2">
+        <button 
+          onClick={dec} 
+          className="px-3 py-2 bg-red-600 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center w-full"
+        >
+          <FaMinus />
         </button>
-        <button onClick={dec} className="px-4 py-2 bg-red-500 rounded-lg hover:bg-red-600">
-          - Progress
+        <button 
+          onClick={inc} 
+          className="px-3 py-2 bg-primary-500 rounded-lg hover:bg-primary-600 transition-colors flex items-center justify-center w-full"
+        >
+          <FaPlus /> 
         </button>
       </div>
 
-      {pct >= 100 && (
+      {currentComplete && (
         <div className="mt-4 flex flex-col gap-2">
           {!archived ? (
-            <button onClick={archiveTask} className="px-4 py-2 bg-yellow-500 rounded-lg hover:bg-yellow-600">
-              Archive Task
+            <button onClick={archiveTask} className="px-4 py-2 bg-yellow-500 rounded-lg hover:bg-yellow-600 flex items-center justify-center gap-2 font-semibold">
+              <FaArchive /> Archive Quest
             </button>
           ) : (
-            <button onClick={unarchiveTask} className="px-4 py-2 bg-blue-500 rounded-lg hover:bg-blue-600">
-              Unarchive Task
+            <button onClick={unarchiveTask} className="px-4 py-2 bg-blue-500 rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2 font-semibold">
+              <FaUndo /> Unarchive Quest
             </button>
           )}
-          <button onClick={removeTask} className="px-4 py-2 bg-red-500 rounded-lg hover:bg-red-600">
-            Remove Task
+          <button onClick={removeTask} className="px-4 py-2 bg-red-500 rounded-lg hover:bg-red-600 flex items-center justify-center gap-2 font-semibold">
+            <FaTrashAlt /> Remove Quest
           </button>
         </div>
       )}

@@ -1,84 +1,78 @@
+// bd/controllers/streakController.js (NEW FILE)
+
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-function areConsecutiveDays(date1 , date1){
-    const oneDay = 24*60*60*1000;
-    const d1 = new Date(date1);//Date is the built in js constructor.
-    const d2 = new Date(date2);
+
+// Helper to format a Date object into YYYY-MM-DD string
+const getDateKey = (date) => date.toISOString().split('T')[0];
+
+// Function to get the last 90 days of activity
+const getStreak = async (req, res) => {
+  const userId = req.user.id;
+  
+  // Calculate the date 90 days ago for filtering
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+  try {
+    // Fetch all task updates from the last 90 days for the user's tasks.
+    // We rely on 'updatedAt' being modified when a user interacts with a task.
+    const activity = await prisma.task.findMany({
+      where: {
+        userId: userId,
+        updatedAt: {
+          gte: ninetyDaysAgo,
+        },
+      },
+      select: {
+        updatedAt: true,
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      }
+    });
+
+    // Process activity into a map of YYYY-MM-DD : true
+    const activityMap = {};
+    activity.forEach(item => {
+      const dateKey = getDateKey(item.updatedAt);
+      activityMap[dateKey] = true;
+    });
+
+    // --- Calculate Current Streak Count ---
+    let currentStreak = 0;
+    let checkDate = new Date();
+    const todayKey = getDateKey(checkDate);
     
-    
-//A Date String (Most Common): A string like "2025-10-21T10:30:00Z" or "October 21, 2025". The Date constructor will parse this string and create a proper date object from it.
-
-//A Timestamp: A number representing the number of milliseconds since January 1, 1970, UTC (the Unix Epoch). The constructor converts this number into the corresponding moment in time.
-
-//An Existing Date Object: If the parent already passed a date object, the constructor creates a copy of it. This prevents changes to d1 from affecting the original object (date1). This is safer for code.
-    d1.setHours(0,0,0,0);
-    d2.setHours(0,0,0,0);
-    return d2.getTime() - d1.getTime() === oneDay;
-
-                               }
-
-const getStreaks = async (req , res) => {
-    try{
-        const streaks = await prisma.streak.findMany({where:{userId: req.user.id},});
-        res.status(200).json(streaks);
-    }   catch(error){
-        console.error("Error fetching streaks : " , error);
-        res.status(500).json({message: " Server error while fetching streaks "})
+    // Check for activity today
+    let foundActivity = activityMap[todayKey];
+    if (foundActivity) {
+        currentStreak++;
     }
 
-    };
+    // Check previous days consecutively
+    for (let i = foundActivity ? 1 : 0; i < 90; i++) {
+        checkDate.setDate(checkDate.getDate() - 1); // Go back one day
+        const dateKey = getDateKey(checkDate);
 
- const updateStreak = async (req , res) =>{ const {taskId} = req.body ;
- const userId  = req.user.id ; 
- if(!taskId){
-    return res.status(400).json({message: " Task ID is required "});
-
- }
-
- try { 
-    const today = new Date();
-    const streak  = await prisma.streak.upsert({
-        where: {
-            userId_taskId : {userId: userId, 
-                tsaskId: parseInt(taskId),},
-
-            update: {},
-            create:{
-                userId: userId,
-                taskId: pasreInt(taskId),
-                 count:0 , 
-            }    
-
-            }
-        });
-
-    let newCount =  1;
-    if (streak.count  > 0 && areConsecutiveDays(streak.lastUpdated , today ))   {
-        newCount = streak.count +  1 ; 
-         
-    } 
-
-    const updatedStreak = await prisma.streak.update({
-        where: {id: streak.id},
-        data: {
-            count : newCount, 
-            lastUpdated: today , 
-
+        if (activityMap[dateKey]) {
+            currentStreak++;
+        } else {
+            // Streak broken
+            break; 
         }
-    });
-    res.status(200).json(updatedStreak);}
-    catch(error){
-        console.error("Error updating streak " , error );
-        res.status(500).json({message: " Server error while updating streak. "});
-    } 
-    };
-    const applyForgiveness  = async(req ,res) => { 
-        // We'll build this logic later 
-        console.log("Reached applyForgiveness endpoint.");
-        res.status(200).json({message:"Streak forgveness endpoint reached . "});
-    };
+    }
     
-    module.eexports = { getStreaks ,  updateStreak , applyForgiveness };
+    return res.json({
+        activity: activityMap,
+        currentStreak: currentStreak,
+        period: 90
+    });
 
-  
-                             
+  } catch (error) {
+    console.error('Streak calculation error:', error);
+    return res.status(500).json({ message: 'Failed to calculate streak data' });
+  }
+};
+
+module.exports = { getStreak };

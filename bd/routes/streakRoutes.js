@@ -5,6 +5,6 @@ const authenticateUser = require('../controllers/authMiddleware');
 const {getStreaks , updateStreaks , applyForgiveness } = require('../controllers/streakController');
 router.use(authenticateUser);
 router.get('/',getStreaks);
-router.podt('/update',updateStreaks);
+router.post('/update',updateStreaks);
 router.post('/forgive', applyForgiveness);
 module.exports = router;
